@@ -132,7 +132,7 @@ def classify():
 
     bot_last_use[bot_name] = datetime.datetime.now()
     result = {'code': 0, 'msg': 'success', 'time_cost': time_cost(start),
-              'data': {'label': label, 'score': score, 'same_sent': same_sent}}
+              'data': {'label': label, 'score': float(score), 'same_sent': same_sent}}
     return jsonify(result)
 
 
