@@ -31,18 +31,18 @@ def build_bert_cmd(bot_name, all_labels, num_train_epochs):
     return cmd
 
 
-def train(bot_name, all_labels, init_epoch=1, fea=0):
-    former_eval_accuracy = fea
+def train(bot_name, all_labels):
+    former_eval_accuracy = 0
     bert_eval_file = os.path.join(BOT_SRC_DIR, bot_name, "output/eval_results.txt")
 
-    for epoch in range(init_epoch, sys.maxsize):
+    for epoch in range(1, sys.maxsize):
         cmd = build_bert_cmd(bot_name, all_labels, epoch)
         ret_res = subprocess.call(cmd)
         if ret_res != 0:
             return {}
 
-        append_file(bert_eval_file, "epoch = " + str(epoch))
         eval_res = read_bert_eval_res_to_dict(bert_eval_file)
+        eval_res["epoch"] = epoch
 
         eval_accuracy = eval_res["eval_accuracy"]
         if abs(eval_accuracy - former_eval_accuracy) < 0.01:
@@ -86,13 +86,13 @@ def get_export_dir(export_dir):
     return os.path.join(export_dir, dirs[0])
 
 
-def get_bert_sent_vecs(sent_list):
+def get_bert_sent_vecs(bot_predict_fn, sent_list):
     feed_dict = {"input_ids": [], "input_mask": [], "segment_ids": []}
     for line in sent_list:
         input_ids, input_mask, segment_ids = convert_single_example(line.strip())
         feed_dict["input_ids"].append(input_ids)
         feed_dict["input_mask"].append(input_mask)
         feed_dict["segment_ids"].append(segment_ids)
-    prediction = globals()['predict_fn'](feed_dict)
+    prediction = bot_predict_fn(feed_dict)
     query_output = prediction["query_output"]
     return query_output

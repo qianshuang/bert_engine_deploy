@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import datetime
-import numpy as np
 
 BOT_SRC_DIR = "bot_resources"
 
@@ -28,14 +27,12 @@ def write_lines(filename, list_res):
         test_w.write(j + "\n")
 
 
-def time_cost(start):
-    end_time = datetime.datetime.now()
-    return str(end_time - start).split('.')[0]
-
-
-def get_label_score_by_probs(probabilities, all_labels):
-    max_idx = np.argmax(probabilities)
-    return all_labels[max_idx], float(probabilities[max_idx])
+def time_cost(start, type_="sec"):
+    interval = datetime.datetime.now() - start
+    if type_ == "sec":
+        return interval.total_seconds()
+    elif type_ == "day":
+        return interval.days
 
 
 def read_bert_eval_res_to_dict(bert_eval_file):
