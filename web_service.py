@@ -2,10 +2,6 @@
 
 import json
 
-import numpy as np
-import pandas as pd
-import tensorflow as tf
-
 from flask import Flask, jsonify
 from flask import request
 from gevent import pywsgi
@@ -23,7 +19,7 @@ def refresh():
     input json:
     {
         "bot_name": "xxxxxx",  # 要查询的bot name
-        "operate": "upsert",  # 操作。upsert：更新或新增；delete：删除
+        "operate": "update",  # 操作。update：更新bot；delete：删除bot；new：新增bot
     }
 
     return:
@@ -38,35 +34,42 @@ def refresh():
     bot_name = resq_data["bot_name"].strip()
     operate = resq_data["operate"].strip()
 
-    if operate == "upsert":
-        data_file_path = os.path.join(BOT_SRC_DIR, bot_name, "data/data.txt")
-        train_file_path = os.path.join(BOT_SRC_DIR, bot_name, "data/train.txt")
-        test_file_path = os.path.join(BOT_SRC_DIR, bot_name, "data/test.txt")
-        label_file_path = os.path.join(BOT_SRC_DIR, bot_name, "data/label.txt")
-        export_dir = os.path.join(BOT_SRC_DIR, bot_name, "export")
-
-        # 拆分训练测试集
-        write_lines(data_file_path, read_file(data_file_path))
-        df = pd.read_csv(data_file_path, sep='\t', header=None)
-        df_test = df.sample(frac=0.1, axis=0)
-        df_train = df[~df.index.isin(df_test.index)]
-        df_test.to_csv(test_file_path, sep='\t', index=False, header=False)
-        df_train.to_csv(train_file_path, sep='\t', index=False, header=False)
-
-        # 自动化训练 + 模型导出 + 模型加载
-        all_labels = list(set(df[0].values))
-        write_lines(label_file_path, all_labels)
-        if os.path.exists(export_dir):
-            shutil.rmtree(export_dir)
-
-        res_data = train(bot_name, ",".join(all_labels))
-        del bot_sent_label_vec[bot_name]
-        del bot_predict_fn[bot_name]
+    if operate == "new":
+        res_data = train_from_scratch(bot_name)
+        load_model_vec(bot_name)
         if res_data == {}:
             result = {'code': 1, 'msg': 'train failed', 'time_cost': time_cost(start)}
         else:
             result = {'code': 0, 'msg': 'success', 'time_cost': time_cost(start), 'data': res_data}
         return jsonify(result)
+    elif operate == "update":
+        # 增量计算向量
+        if bot_name not in bot_predict_fn:
+            load_model_vec(bot_name)
+        sent_label = {}
+        sent_vec = {}
+        for item in bot_sent_label_vec[bot_name]:
+            sent_label[item[0]] = item[1]
+            sent_vec[item[0]] = item[2]
+        data_file_path = os.path.join(BOT_SRC_DIR, bot_name, "data/data.txt")
+        lines = read_file(data_file_path)
+        labels = [line_.split("\t")[0] for line_ in lines]
+        sents = [line_.split("\t")[1] for line_ in lines]
+        sent_label_dict = dict(zip(sents, labels))
+
+        need_compute = list(set(sents) - sent_label.keys())
+        query_outputs = get_bert_sent_vecs(bot_predict_fn[bot_name], need_compute)
+        sent_vec_dict = dict(zip(need_compute, query_outputs))
+
+        final_sent_label_vecs = []
+        for sent in sents:
+            if sent in need_compute:
+                final_sent_label_vecs.append([sent, sent_label_dict[sent], sent_vec_dict[sent]])
+            else:
+                final_sent_label_vecs.append([sent, sent_label[sent], sent_vec[sent]])
+        bot_sent_label_vec[bot_name] = np.array(final_sent_label_vecs)
+
+        bot_need_retrain.append(bot_name)
     elif operate == "delete":
         # 删除bot
         try:
@@ -105,16 +108,7 @@ def classify():
 
     # 模型预测
     if bot_name not in bot_predict_fn:
-        export_dir = os.path.join(BOT_SRC_DIR, bot_name, "export")
-        bot_predict_fn[bot_name] = tf.contrib.predictor.from_saved_model(get_export_dir(export_dir))
-        print(bot_name, "model finished reloading...")
-
-        train_file_path = os.path.join(BOT_SRC_DIR, bot_name, "data/train.txt")
-        lines = read_file(train_file_path)
-        labels = [line_.split("\t")[0] for line_ in lines]
-        sents = [line_.split("\t")[1] for line_ in lines]
-        bert_sent_vecs = get_bert_sent_vecs(bot_predict_fn[bot_name], sents)
-        bot_sent_label_vec[bot_name] = np.array([[sents[i], labels[i], bert_sent_vecs[i]] for i in range(len(sents))])
+        load_model_vec(bot_name)
 
     sent_label_vecs = bot_sent_label_vec[bot_name]
     predict_fn = bot_predict_fn[bot_name]

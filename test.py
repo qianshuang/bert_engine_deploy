@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
-import os
+import numpy as np
 
-print(os.path.join("a", "b"))
+dic = {"a": 1}
+del dic["b"]

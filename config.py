@@ -1,16 +1,13 @@
 # -*- coding: utf-8 -*-
 
-import shutil
-
 import schedule
 import threading
 import time
 
 from bert_common import *
 
-bot_predict_fn = {}
-bot_sent_label_vec = {}
 bot_last_use = {}
+bot_need_retrain = []
 
 
 # 每天把超过7天未使用bot模型从内存卸载
@@ -29,6 +26,11 @@ def run_resources():
         _dirs_.sort(reverse=True)
         for d in _dirs_[1:]:
             shutil.rmtree(os.path.join(_export_dir_, d))
+
+    # 重训练bot
+    for bot in bot_need_retrain:
+        train_from_scratch(bot)
+        load_model_vec(bot)
 
 
 schedule.every().day.do(run_resources)
