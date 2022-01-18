@@ -7,7 +7,7 @@ import time
 from bert_common import *
 
 bot_last_use = {}
-bot_need_retrain = []
+bot_need_retrain = {}
 
 
 # 每天把超过7天未使用bot模型从内存卸载
@@ -28,9 +28,14 @@ def run_resources():
             shutil.rmtree(os.path.join(_export_dir_, d))
 
     # 重训练bot
-    for bot in bot_need_retrain:
-        train_from_scratch(bot)
-        load_model_vec(bot)
+    for i in sorted(bot_need_retrain.items(), key=lambda kv: (kv[1], kv[0]), reverse=True):
+        try:
+            train_from_scratch(i[0])
+        except:
+            print("too many training tasks, try tomorrow ---", bot_need_retrain)
+            break
+        load_model_vec(i[0])
+        bot_need_retrain.pop(i[0])
 
 
 schedule.every().day.do(run_resources)

@@ -35,8 +35,12 @@ def refresh():
     operate = resq_data["operate"].strip()
 
     if operate == "new":
-        res_data = train_from_scratch(bot_name)
-        load_model_vec(bot_name)
+        try:
+            res_data = train_from_scratch(bot_name)
+            load_model_vec(bot_name)
+        except:
+            return {'code': 2, 'msg': 'another training task is processing, please try again later',
+                    'time_cost': time_cost(start)}
         if res_data == {}:
             result = {'code': 1, 'msg': 'train failed', 'time_cost': time_cost(start)}
         else:
@@ -69,7 +73,7 @@ def refresh():
                 final_sent_label_vecs.append([sent, sent_label[sent], sent_vec[sent]])
         bot_sent_label_vec[bot_name] = np.array(final_sent_label_vecs)
 
-        bot_need_retrain.append(bot_name)
+        bot_need_retrain[bot_name] = datetime.datetime.now()
     elif operate == "delete":
         # 删除bot
         try:

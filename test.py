@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-import numpy as np
 
-dic = {"a": 1}
-del dic["b"]
+import datetime
+
+dic = {"a": datetime.datetime.now(), "b": datetime.datetime.now()}
+print("too many training tasks, try tomorrow---", dic)
