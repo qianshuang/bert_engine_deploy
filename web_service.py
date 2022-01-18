@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+import datetime
 import json
 
 from flask import Flask, jsonify
@@ -19,7 +19,7 @@ def refresh():
     input json:
     {
         "bot_name": "xxxxxx",  # 要查询的bot name
-        "operate": "update",  # 操作。update：更新bot；delete：删除bot；new：新增bot
+        "operate": "update",  # 操作。update：更新bot；delete：删除bot；new：新增bot；copy：复制bot
     }
 
     return:
@@ -46,6 +46,16 @@ def refresh():
         else:
             result = {'code': 0, 'msg': 'success', 'time_cost': time_cost(start), 'data': res_data}
         return jsonify(result)
+    elif operate == "copy":
+        # 复制bot。一方面不用从头训练，直接复用原始bot的能力；另一方面避免误删除bot
+        src_bot_name = resq_data["src_bot_name"].strip()
+        src_bot_path = os.path.join(BOT_SRC_DIR, src_bot_name)
+        bot_path = os.path.join(BOT_SRC_DIR, bot_name)
+        shutil.copytree(src_bot_path, bot_path)
+        load_model_vec(bot_name)
+        if src_bot_name in bot_need_retrain:
+            bot_need_retrain[bot_name] = datetime.datetime.now()
+        return {'code': 0, 'msg': 'success', 'time_cost': time_cost(start)}
     elif operate == "update":
         # 增量计算向量
         if bot_name not in bot_predict_fn:
@@ -72,8 +82,8 @@ def refresh():
             else:
                 final_sent_label_vecs.append([sent, sent_label[sent], sent_vec[sent]])
         bot_sent_label_vec[bot_name] = np.array(final_sent_label_vecs)
-
         bot_need_retrain[bot_name] = datetime.datetime.now()
+        return {'code': 0, 'msg': 'success', 'time_cost': time_cost(start)}
     elif operate == "delete":
         # 删除bot
         try:
